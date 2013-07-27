@@ -3,14 +3,15 @@
 #include <Pushbutton.h>
 
 /*
-
+   Obstacle-avoiding robot code.
  */
 
 #define LED 13
 #define SPEED 200.0
 #define SPIN_FUDGE 800.0
 #define TURN_FUDGE 1500.0
-#define WINDOW 30.0
+#define WINDOW 45.0
+#define STEP 5.0
 #define THRESHOLD 300
 #define DEVIATION 1.2
 #define UNDEVIATION (1.0 / DEVIATION)
@@ -53,21 +54,56 @@ void loop() {
      delay(500);
   }
   
+  // if we're blocked
   if (isBlocked()) {
+    // stop
     go(0);
-    if (spin_and_look(random(0, 2) > 0 ? 360 : -360, WINDOW)) {
-      spin(WINDOW/-2);
+    
+    // randomly
+    if (random(0, 2) > 0) {
+        // spin right until we see a gap
+        if (spin_and_look_right(360, WINDOW)) {
+            // then correct back half the window 
+            spin(-WINDOW/2);
+        } else {
+          // we're stuck
+          alarm();
+          halt();
+        }
+    } else {
+        // spin left until we see a gap
+        if (spin_and_look_left(360, WINDOW)) {
+            // then correct back half the window
+            spin(WINDOW/2);
+        } else {
+          // we're stuck
+          alarm();
+          halt();
+        }
     }
+    
+  // otherwise, move forward while scanning for best path
   } else {  
     curve_and_look(SPEED);
-    //go(SPEED);
   }
   
   if (button.isPressed()) {
+    halt();
+  }
+}
+
+void alarm() {
+    for (int i = 0; i < 8; i++)
+    {
+        buzzer.playNote(NOTE_G(5), 200, 15);
+        delay(200);
+    }
+}
+
+void halt() {
     go(0);
     state = STANDBY;
     delay(500);
-  }
 }
 
 
@@ -76,40 +112,44 @@ boolean isBlocked() {
 }
 
 
-
-boolean spin_and_look(int degrees, int window) {
-  int step = 5;
+// spin until we see a wide enough window to go through
+boolean spin_and_look_right(int degrees, int window) {
   int width = 0;
   
-  if (degrees > 0) {
-    for (int i=0; i < degrees; i += step) {
-      spin(step);
-      
-      if (!isBlocked()) {
-        width += step;
-      } else {
-        width = 0;
-      }
-      
-      if (width == window) return true;
+  for (int i=0; i < degrees; i += STEP) {
+    spin(STEP);
+    
+    if (!isBlocked()) {
+      width += STEP;
+    } else {
+      width = 0;
     }
-  } else {
-    for (int i=0; i > degrees; i -= step) {
-      spin(-step);
-      
-      if (!isBlocked()) {
-        width += step;
-      } else {
-        width = 0;
-      }
-      
-      if (width == window) return true;
-    }
+    
+    if (width >= window) return true;
   }
   
   return false;
 }
 
+
+// spin until we see a wide enough window to go through
+boolean spin_and_look_left(int degrees, int window) {
+  int width = 0;
+  
+  for (int i=0; i < degrees; i += STEP) {
+    spin(-STEP);
+    
+    if (!isBlocked()) {
+      width += STEP;
+    } else {
+      width = 0;
+    }
+    
+    if (width >= window) return true;
+  }
+  
+  return false;
+}
 
 void curve_and_look(int speed) {
   if (++look_count > LOOK_ARRAY_SIZE) {
